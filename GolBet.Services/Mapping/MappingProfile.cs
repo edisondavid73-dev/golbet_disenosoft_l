@@ -1,4 +1,36 @@
 ﻿// GolBet.Services/Mapping/MappingProfile.cs 
+using AutoMapper;
+using GolBet.Entities;
+using GolBet.Services.DTOs;
+
+namespace GolBet.Services.Mapping;
+
+public class MappingProfile : Profile
+{
+    public MappingProfile()
+    {
+        // Flattening by convention: 
+        // MatchDto.HomeTeamName  <- Match.HomeTeam.Name 
+        // MatchDto.AwayTeamCrestUrl <- Match.AwayTeam.CrestUrl 
+        CreateMap<Match, MatchDto>();
+
+        CreateMap<Match, MatchDetailDto>()
+            .ForMember(dto => dto.TotalBets,
+                       options => options.MapFrom(match => match.Bets != null ? match.Bets.Count : 0));
+
+        CreateMap<Team, TeamDto>();
+        CreateMap<TeamFormDto, Team>().ReverseMap();
+        CreateMap<MatchFormDto, Match>().ReverseMap();
+        CreateMap<Bet, BetDto>()
+            .ForMember(dto => dto.PotentialPayout,
+                       options => options.MapFrom(bet => bet.Amount * bet.OddsAtPlacement));
+    }
+}
+
+
+/* antes del modulo 9
+ * 
+// GolBet.Services/Mapping/MappingProfile.cs 
 
 using AutoMapper;
 
@@ -55,3 +87,4 @@ public class MappingProfile : Profile
     }
 
 }
+*/
