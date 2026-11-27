@@ -7,8 +7,8 @@ using GolBet.Services.Interfaces;
 using GolBet.Services.Mapping;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Serilog; //modificacion MOD 10
 using System.Globalization;
-
 
 var culture = new CultureInfo("es-CO");
 // Dates in Spanish; numbers neutral so model binding reads "2.5" correctly
@@ -17,59 +17,40 @@ culture.NumberFormat.NumberGroupSeparator = "";  // "2,5" fails loudly, never bi
 
 CultureInfo.DefaultThreadCurrentCulture = culture;
 CultureInfo.DefaultThreadCurrentUICulture = culture;
+
 var builder = WebApplication.CreateBuilder(args);
 
-
+//modificacion MOD 10
+builder.Host.UseSerilog((context, config) =>
+    config.ReadFrom.Configuration(context.Configuration));
 
 builder.Services.AddControllersWithViews();
-
-
 
 //Este es el nuevo código  
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-
-
-
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
-
 {
-
     // Academic-friendly password policy (production would be stricter) 
-
     options.Password.RequiredLength = 6;
-
     options.Password.RequireNonAlphanumeric = false;
-
     options.Password.RequireUppercase = false;
-
     options.Password.RequireDigit = true;
-
     options.User.RequireUniqueEmail = true;
-
 })
     .AddEntityFrameworkStores<AppDbContext>();
 
-
-
 builder.Services.ConfigureApplicationCookie(options =>
-
 {
-
     options.LoginPath = "/Account/Login";           // anonymous hitting [Authorize] 
-
     options.AccessDeniedPath = "/Account/AccessDenied";  // wrong role 
-
 });
 
 // Open generic registration: one line, a repository for every entity 
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-
-
 
 // Specific repositories 
 
@@ -80,8 +61,6 @@ builder.Services.AddScoped<IBetRepository, BetRepository>();
 
 builder.Services.AddAutoMapper(typeof(MappingProfile));
 
-
-
 // Business services 
 
 builder.Services.AddScoped<IMatchService, MatchService>();
@@ -91,20 +70,41 @@ builder.Services.AddScoped<IBetService, BetService>();
 var app = builder.Build();
 // Seed the database on startup 
 
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsDevelopment())
 
 {
 
+    app.UseExceptionHandler("/Error/General");
+
+}
+// Status codes without a body (404 and friends): re-execute 
+
+// the pipeline against our ErrorController 
+
+app.UseStatusCodePagesWithReExecute("/Error/{0}");
+
+
+
+app.UseHttpsRedirection();
+
+app.UseStaticFiles();
+
+app.UseSerilogRequestLogging();
+
+app.UseRouting();
+
+app.UseAuthentication();
+
+app.UseAuthorization();
+
+
+using (var scope = app.Services.CreateScope())
+{
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
 
-
-
     await DbSeeder.SeedAsync(context, roleManager, userManager);
-
 }
 
 // Configure the HTTP request pipeline.
@@ -118,6 +118,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+//modificacion MOD 10
+app.UseSerilogRequestLogging();
+
 app.UseRouting();
 
 app.UseAuthentication();   // who are you?  (reads the cookie, builds User) 
@@ -129,3 +132,8 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
+
+
+
+
+
